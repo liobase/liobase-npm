@@ -1,25 +1,45 @@
-import { ClientOptions, HealthResponse } from './types';
+import { ClientOptions } from './types';
 import { ApiError } from './errors';
+import { UploaderResource } from './resources/uploader';
 
-export class ApiClient {
-  private apiKey: string;
-  private apiSecret: string;
-  private baseUrl: string;
+export class LiobaseSDK {
+  private apiKey?: string;
+  private apiSecret?: string;
+  private baseUrl: string = 'https://api.liobase.com/api';
 
-  constructor(options: ClientOptions) {
+  public uploader: UploaderResource;
+
+  constructor() {
+    this.uploader = new UploaderResource(this);
+  }
+
+  /**
+   * Configure the global SDK with your API credentials
+   */
+  public config(options: ClientOptions): void {
     if (!options.apiKey || !options.apiSecret) {
-      throw new Error('Both apiKey and apiSecret are required to initialize ApiClient.');
+      throw new Error('Both apiKey and apiSecret are required in liobase.config().');
     }
 
     this.apiKey = options.apiKey;
     this.apiSecret = options.apiSecret;
-    this.baseUrl = (options.baseUrl || 'https://api.liobase.com/api').replace(/\/$/, '');
+
+    if (options.baseUrl) {
+      this.baseUrl = options.baseUrl.replace(/\/$/, '');
+    }
   }
 
   /**
-   * Internal HTTP handler that injects authentication headers and parses responses
+   * Internal request engine
    */
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    // Guard against making requests before config() is called
+    if (!this.apiKey || !this.apiSecret) {
+      throw new Error(
+        'liobase is not configured. Call liobase.config({ apiKey, apiSecret }) before calling API endpoints.'
+      );
+    }
+
     const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const url = `${this.baseUrl}${formattedEndpoint}`;
 
@@ -42,28 +62,6 @@ export class ApiClient {
       );
     }
 
-    // Handle 204 No Content
-    if (response.status === 204) {
-      return {} as T;
-    }
-
     return response.json() as Promise<T>;
-  }
-
-  /**
-   * Helper method for custom GET requests
-   */
-  async get<T>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
-  }
-
-  /**
-   * Helper method for custom POST requests
-   */
-  async post<T>(endpoint: string, body: unknown): Promise<T> {
-    return this.request<T>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
   }
 }
