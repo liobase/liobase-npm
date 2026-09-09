@@ -13,7 +13,7 @@ export class ApiClient {
 
     this.apiKey = options.apiKey;
     this.apiSecret = options.apiSecret;
-    this.baseUrl = (options.baseUrl || 'https://api.liobase.com').replace(/\/$/, '');
+    this.baseUrl = (options.baseUrl || 'https://api.liobase.com/api').replace(/\/$/, '');
   }
 
   /**
