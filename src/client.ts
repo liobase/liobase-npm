@@ -3,7 +3,7 @@ import {
   GetProjectIdApiResponse, 
   GetAllFoldersApiResponse, 
   CreateFolderApiResponse 
-} from './types';
+} from './types/types';
 import { ApiError } from './errors';
 import { UploaderResource } from './resources/uploader';
 

@@ -1,10 +1,10 @@
 import { LiobaseSDK } from './client';
 
-export const liobase = new LiobaseSDK();
+export { LiobaseSDK };
 
+export const liobase = new LiobaseSDK();
 export default liobase;
 
-
-// Export types and errors for developers
+// Export error classes and public interfaces
 export { ApiError } from './errors';
-export * from './types';
+export * from './types/types';

@@ -26,16 +26,18 @@ export interface CreateFolderApiResponse {
 export interface UploadFileOptions {
   name: string;
   originalFileName: string;
-  folderName?: string; // Defaults to "Home"
+  folderName?: string;
   isActive?: boolean;
 }
 
 export interface UploadStreamOptions {
   name: string;
   originalFileName: string;
-  folderName?: string; // Defaults to "Home"
+  folderName?: string;
   isActive?: boolean;
 }
+
+export type UniversalStream = Readable | ReadableStream<Uint8Array>;
 
 export interface UploadObjectMetadata {
   projectId: string;
@@ -48,5 +50,3 @@ export interface UploadObjectMetadata {
 export interface UploadObjectResponse {
   objectId: string;
 }
-
-export type UniversalStream = Readable | ReadableStream<Uint8Array>;

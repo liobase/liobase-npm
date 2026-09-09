@@ -3,9 +3,10 @@ import { BaseResource } from './base';
 import { 
   UploadFileOptions, 
   UploadStreamOptions, 
+  UniversalStream,
   UploadObjectMetadata, 
   UploadObjectResponse 
-} from '../types';
+} from '../types/types';
 
 export class UploaderResource extends BaseResource {
   /**
@@ -35,11 +36,11 @@ export class UploaderResource extends BaseResource {
 
   /**
    * True zero-RAM streaming upload method.
-   * Pipes chunks directly from an incoming Node.js Readable stream or HTTP request.
+   * Supports Node.js Readable streams and Web Standard ReadableStreams.
    */
   async uploadFileStream(
     options: UploadStreamOptions,
-    stream: Readable
+    stream: UniversalStream
   ): Promise<UploadObjectResponse> {
     const targetFolderName = options.folderName ?? 'Home';
     const folderId = await this.client.getOrCreateFolderId(targetFolderName);
@@ -52,7 +53,6 @@ export class UploaderResource extends BaseResource {
       isActive: options.isActive ?? true,
     };
 
-    // Construct a multipart stream dynamically using an async generator
     const boundary = `----LiobaseBoundary${Math.random().toString(36).substring(2)}`;
 
     const metadataPart = 
@@ -68,22 +68,60 @@ export class UploaderResource extends BaseResource {
 
     const footerPart = `\r\n--${boundary}--\r\n`;
 
-    // Wrap in a Node Readable stream that yields parts on-demand
+    const encoder = new TextEncoder();
+
+    // Handle Web Standard ReadableStream (Next.js App Router, Cloudflare Workers, Fastly, fetch Request)
+    if ('getReader' in stream && typeof stream.getReader === 'function') {
+      const reader = stream.getReader();
+
+      const webStream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(encoder.encode(metadataPart));
+          controller.enqueue(encoder.encode(fileHeaderPart));
+        },
+        async pull(controller) {
+          try {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.enqueue(encoder.encode(footerPart));
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            controller.error(err);
+          }
+        },
+        cancel(reason) {
+          reader.cancel(reason);
+        }
+      });
+
+      return this.client.request<UploadObjectResponse>('/upload-object', {
+        method: 'POST',
+        body: webStream,
+        duplex: 'half',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+      });
+    }
+
+    // Handle Node.js Readable stream (Express, Koa, Fastify, fs.createReadStream)
     const bodyStream = Readable.from(async function* () {
       yield Buffer.from(metadataPart, 'utf-8');
       yield Buffer.from(fileHeaderPart, 'utf-8');
-      
-      // Stream file chunks directly without collecting them in RAM
-      for await (const chunk of stream) {
+
+      for await (const chunk of stream as Readable) {
         yield typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
       }
-      
+
       yield Buffer.from(footerPart, 'utf-8');
     }());
 
     return this.client.request<UploadObjectResponse>('/upload-object', {
       method: 'POST',
-      // @ts-expect-error Node fetch accepts Readable streams with duplex: 'half'
+      // @ts-expect-error Native fetch accepts Readable streams with duplex: 'half'
       body: bodyStream,
       duplex: 'half',
       headers: {
