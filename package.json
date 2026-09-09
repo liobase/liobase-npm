@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "init": "^0.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
+  }
+}
