@@ -1,6 +1,6 @@
 {
   "name": "liobase",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "API client for Liobase Service",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
