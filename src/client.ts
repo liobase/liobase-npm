@@ -71,9 +71,6 @@ export class LiobaseSDK {
     return this.projectId;
   }
 
-  /**
-   * Retrieves the folder ID, or automatically creates the folder via API if it does not exist.
-   */
   public async getOrCreateFolderId(folderName: string = 'Home'): Promise<string> {
     await this.ensureInitialized();
 
@@ -82,7 +79,6 @@ export class LiobaseSDK {
       return folderId;
     }
 
-    // Folder doesn't exist yet, create it via API
     const response = await this.request<CreateFolderApiResponse>('/create-folder', {
       method: 'POST',
       body: JSON.stringify({
