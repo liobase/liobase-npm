@@ -6,8 +6,3 @@ export interface ClientOptions {
 
   baseUrl?: string;
 }
-
-export interface HealthResponse {
-  status: string;
-  [key: string]: unknown;
-}

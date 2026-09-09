@@ -1,17 +1,6 @@
-export interface ClientOptions {
-    baseUrl?: string;
-    timeout?: number;
-}
-export interface HealthResponse {
-    status: string;
-    [key: string]: unknown;
-}
-export declare class ApiClient {
-    private baseUrl;
-    constructor(options?: ClientOptions);
-    /**
-     * Checks the health of the API endpoint.
-     */
-    checkHealth(): Promise<HealthResponse>;
-}
+import { LiobaseSDK } from './client';
+export declare const liobase: LiobaseSDK;
+export default liobase;
+export { ApiError } from './errors';
+export * from './types';
 //# sourceMappingURL=index.d.ts.map
