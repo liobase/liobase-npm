@@ -1,4 +1,5 @@
-// types.ts
+import type { Readable } from 'stream';
+
 export interface ClientOptions {
   apiKey: string;
   apiSecret: string;
@@ -18,11 +19,6 @@ export interface GetProjectIdApiResponse {
   projectId: string;
 }
 
-export interface CreateFolderApiRequest {
-  projectId: string;
-  name: string;
-}
-
 export interface CreateFolderApiResponse {
   folderId: string;
 }
@@ -30,7 +26,14 @@ export interface CreateFolderApiResponse {
 export interface UploadFileOptions {
   name: string;
   originalFileName: string;
-  folderName?: string; 
+  folderName?: string; // Defaults to "Home"
+  isActive?: boolean;
+}
+
+export interface UploadStreamOptions {
+  name: string;
+  originalFileName: string;
+  folderName?: string; // Defaults to "Home"
   isActive?: boolean;
 }
 
@@ -45,3 +48,5 @@ export interface UploadObjectMetadata {
 export interface UploadObjectResponse {
   objectId: string;
 }
+
+export type UniversalStream = Readable | ReadableStream<Uint8Array>;
