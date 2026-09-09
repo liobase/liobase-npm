@@ -32,24 +32,27 @@ export class LiobaseSDK {
   /**
    * Internal request engine
    */
-  public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    // Guard against making requests before config() is called
+public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     if (!this.apiKey || !this.apiSecret) {
-      throw new Error(
-        'liobase is not configured. Call liobase.config({ apiKey, apiSecret }) before calling API endpoints.'
-      );
+      throw new Error('blabla is not configured. Call blabla.config() first.');
     }
 
     const formattedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     const url = `${this.baseUrl}${formattedEndpoint}`;
 
+    // Build base headers
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
       'API-Key': this.apiKey,
       'API-Secret': this.apiSecret,
       ...(options.headers as Record<string, string>),
     };
+
+    // Inject Content-Type only if it's NOT a FormData request
+    // FormData automatically generates its own Content-Type with a boundary
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json';
+    }
 
     const response = await fetch(url, { ...options, headers });
 
