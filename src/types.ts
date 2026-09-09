@@ -1,27 +1,39 @@
+// types.ts
 export interface ClientOptions {
   apiKey: string;
   apiSecret: string;
   baseUrl?: string;
 }
 
-export interface FolderItem {
-  folderName: string;
+export interface FolderApi {
   folderId: string;
+  folderName: string;
 }
 
-export interface FindProjectResponse {
+export interface GetAllFoldersApiResponse {
+  folders: FolderApi[];
+}
+
+export interface GetProjectIdApiResponse {
   projectId: string;
 }
 
-// User-facing options (folderName is optional and defaults to "/")
+export interface CreateFolderApiRequest {
+  projectId: string;
+  name: string;
+}
+
+export interface CreateFolderApiResponse {
+  folderId: string;
+}
+
 export interface UploadFileOptions {
   name: string;
   originalFileName: string;
-  folderName?: string;
+  folderName?: string; 
   isActive?: boolean;
 }
 
-// Low-level metadata required by the API server
 export interface UploadObjectMetadata {
   projectId: string;
   name: string;

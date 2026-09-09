@@ -1,4 +1,9 @@
-import { ClientOptions, FindProjectResponse, FolderItem } from './types';
+import { 
+  ClientOptions, 
+  GetProjectIdApiResponse, 
+  GetAllFoldersApiResponse, 
+  CreateFolderApiResponse 
+} from './types';
 import { ApiError } from './errors';
 import { UploaderResource } from './resources/uploader';
 
@@ -7,7 +12,6 @@ export class LiobaseSDK {
   private apiSecret?: string;
   private baseUrl: string = 'https://api.liobase.com/api';
 
-  // Internal cached state
   private projectId?: string;
   private folderCache: Map<string, string> = new Map();
   private initPromise: Promise<void> | null = null;
@@ -31,31 +35,26 @@ export class LiobaseSDK {
     }
   }
 
-  /**
-   * Ensures project ID and folder mappings are fetched and cached.
-   * Handles concurrent calls by reusing the pending initialization promise.
-   */
   public async ensureInitialized(): Promise<void> {
-    if (this.projectId) return; // Already initialized
+    if (this.projectId) return;
 
     if (!this.initPromise) {
       this.initPromise = (async () => {
         try {
-          // Fetch project ID and folder list in parallel
           const [projectData, foldersData] = await Promise.all([
-            this.request<FindProjectResponse>('/find-project-id', { method: 'GET' }),
-            this.request<FolderItem[]>('/all-folders', { method: 'GET' }),
+            this.request<GetProjectIdApiResponse>('/find-project-id', { method: 'GET' }),
+            this.request<GetAllFoldersApiResponse>('/all-folders', { method: 'GET' }),
           ]);
 
           this.projectId = projectData.projectId;
           
-          // Populate cache (folderName -> folderId)
           this.folderCache.clear();
-          for (const item of foldersData) {
-            this.folderCache.set(item.folderName, item.folderId);
+          if (foldersData && Array.isArray(foldersData.folders)) {
+            for (const item of foldersData.folders) {
+              this.folderCache.set(item.folderName, item.folderId);
+            }
           }
         } catch (err) {
-          // Reset promise so subsequent requests can retry on failure
           this.initPromise = null;
           throw err;
         }
@@ -72,15 +71,29 @@ export class LiobaseSDK {
     return this.projectId;
   }
 
-  public getFolderId(folderName: string = '/'): string | undefined {
-    return this.folderCache.get(folderName);
-  }
-
   /**
-   * Helper to manually update or insert a folder into the local cache
+   * Retrieves the folder ID, or automatically creates the folder via API if it does not exist.
    */
-  public registerFolder(folderName: string, folderId: string): void {
+  public async getOrCreateFolderId(folderName: string = 'Home'): Promise<string> {
+    await this.ensureInitialized();
+
+    let folderId = this.folderCache.get(folderName);
+    if (folderId) {
+      return folderId;
+    }
+
+    // Folder doesn't exist yet, create it via API
+    const response = await this.request<CreateFolderApiResponse>('/create-folder', {
+      method: 'POST',
+      body: JSON.stringify({
+        projectId: this.getProjectId(),
+        name: folderName,
+      }),
+    });
+
+    folderId = response.folderId;
     this.folderCache.set(folderName, folderId);
+    return folderId;
   }
 
   public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

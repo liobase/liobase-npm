@@ -1,21 +1,29 @@
+// resources/uploader.ts
 import { BaseResource } from './base';
-import { UploadObjectMetadata, UploadObjectResponse } from '../types';
+import { UploadFileOptions, UploadObjectMetadata, UploadObjectResponse } from '../types';
 
 export class UploaderResource extends BaseResource {
   /**
-   * Uploads a file with associated metadata to /upload-object.
-   * 
-   * @param metadata The JSON metadata required by the server.
-   * @param file The file object (File or Blob) to upload.
+   * Uploads a file with associated options to /upload-object.
+   * Automatically defaults to the "Home" folder and handles dynamic folder creation.
    */
-  async uploadFile(metadata: UploadObjectMetadata, file: File | Blob): Promise<UploadObjectResponse> {
+  async uploadFile(options: UploadFileOptions, file: File | Blob): Promise<UploadObjectResponse> {
+    const targetFolderName = options.folderName ?? 'Home';
+    
+    // Resolve or automatically create the folder on the server if missing
+    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+
+    const metadata: UploadObjectMetadata = {
+      projectId: this.client.getProjectId(),
+      name: options.name,
+      originalFileName: options.originalFileName,
+      folderId: folderId,
+      isActive: options.isActive ?? true,
+    };
+
     const formData = new FormData();
-    
-    // Append the metadata part as a JSON string
     formData.append('metadata', JSON.stringify(metadata));
-    
-    // Append the file part (include the original filename to be safe)
-    formData.append('file', file, metadata.originalFileName);
+    formData.append('file', file, options.originalFileName);
 
     return this.client.request<UploadObjectResponse>('/upload-object', {
       method: 'POST',
