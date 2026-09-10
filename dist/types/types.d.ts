@@ -40,4 +40,44 @@ export interface UploadObjectMetadata {
 export interface UploadObjectResponse {
     objectId: string;
 }
+export declare const ALLOWED_FORMATS: readonly ["jpeg", "jpg", "png", "webp", "avif"];
+export type AllowedImageFormat = typeof ALLOWED_FORMATS[number];
+export interface CropOptions {
+    width: number;
+    height: number;
+}
+export interface ScaleOptions {
+    width: number;
+    height: number;
+}
+export interface CompressionOptions {
+    compress: boolean;
+}
+export interface ConversionOptions {
+    format: AllowedImageFormat;
+}
+export interface ImageTransformations {
+    crop?: CropOptions;
+    scale?: ScaleOptions;
+    compression?: CompressionOptions;
+    conversion?: ConversionOptions;
+}
+export interface UploadImageOptions {
+    name: string;
+    originalFileName: string;
+    folderName?: string;
+    isActive?: boolean;
+    transformations?: ImageTransformations;
+}
+export interface UploadImageApiMetadataRequest {
+    projectId: string;
+    name: string;
+    folderId: string;
+    originalFileName: string;
+    isActive: boolean;
+    transformations: ImageTransformations;
+}
+export interface UploadImageResponse {
+    objectId: string;
+}
 //# sourceMappingURL=types.d.ts.map

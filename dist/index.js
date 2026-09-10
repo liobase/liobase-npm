@@ -20,6 +20,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
+  ALLOWED_FORMATS: () => ALLOWED_FORMATS,
   ApiError: () => ApiError,
   LiobaseSDK: () => LiobaseSDK,
   default: () => index_default,
@@ -154,6 +155,106 @@ Content-Type: application/octet-stream\r
       }
     });
   }
+  /**
+   * Uploads an in-memory image File or Blob object with optional transformations.
+   */
+  async uploadImage(options, file) {
+    const targetFolderName = options.folderName ?? "Home";
+    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const metadata = {
+      projectId: this.client.getProjectId(),
+      name: options.name,
+      originalFileName: options.originalFileName,
+      folderId,
+      isActive: options.isActive ?? true,
+      transformations: options.transformations ?? {}
+    };
+    const formData = new FormData();
+    formData.append("metadata", JSON.stringify(metadata));
+    formData.append("file", file, options.originalFileName);
+    return this.client.request("/upload-image", {
+      method: "POST",
+      body: formData
+    });
+  }
+  async uploadImageStream(options, stream) {
+    const targetFolderName = options.folderName ?? "Home";
+    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const metadata = {
+      projectId: this.client.getProjectId(),
+      name: options.name,
+      originalFileName: options.originalFileName,
+      folderId,
+      isActive: options.isActive ?? true,
+      transformations: options.transformations ?? {}
+    };
+    const boundary = `----LiobaseBoundary${Math.random().toString(36).substring(2)}`;
+    const metadataPart = `--${boundary}\r
+Content-Disposition: form-data; name="metadata"\r
+Content-Type: application/json\r
+\r
+${JSON.stringify(metadata)}\r
+`;
+    const fileHeaderPart = `--${boundary}\r
+Content-Disposition: form-data; name="file"; filename="${options.originalFileName}"\r
+Content-Type: application/octet-stream\r
+\r
+`;
+    const footerPart = `\r
+--${boundary}--\r
+`;
+    const encoder = new TextEncoder();
+    if ("getReader" in stream && typeof stream.getReader === "function") {
+      const reader = stream.getReader();
+      const webStream = new ReadableStream({
+        async start(controller) {
+          controller.enqueue(encoder.encode(metadataPart));
+          controller.enqueue(encoder.encode(fileHeaderPart));
+        },
+        async pull(controller) {
+          try {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.enqueue(encoder.encode(footerPart));
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            controller.error(err);
+          }
+        },
+        cancel(reason) {
+          reader.cancel(reason);
+        }
+      });
+      return this.client.request("/upload-image", {
+        method: "POST",
+        body: webStream,
+        duplex: "half",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`
+        }
+      });
+    }
+    const bodyStream = import_stream.Readable.from((async function* () {
+      yield Buffer.from(metadataPart, "utf-8");
+      yield Buffer.from(fileHeaderPart, "utf-8");
+      for await (const chunk of stream) {
+        yield typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+      }
+      yield Buffer.from(footerPart, "utf-8");
+    })());
+    return this.client.request("/upload-image", {
+      method: "POST",
+      // @ts-expect-error Native fetch accepts Readable streams with duplex: 'half'
+      body: bodyStream,
+      duplex: "half",
+      headers: {
+        "Content-Type": `multipart/form-data; boundary=${boundary}`
+      }
+    });
+  }
 };
 
 // src/client.ts
@@ -253,11 +354,15 @@ var LiobaseSDK = class {
   }
 };
 
+// src/types/types.ts
+var ALLOWED_FORMATS = ["jpeg", "jpg", "png", "webp", "avif"];
+
 // src/index.ts
 var liobase = new LiobaseSDK();
 var index_default = liobase;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  ALLOWED_FORMATS,
   ApiError,
   LiobaseSDK,
   liobase
