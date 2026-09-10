@@ -80,3 +80,24 @@ export interface ImageTransformations {
   conversion?: ConversionOptions;
 }
 
+
+export interface UploadImageOptions {
+  name: string;
+  originalFileName: string;
+  folderName?: string;
+  isActive?: boolean;
+  transformations?: ImageTransformations;
+}
+
+export interface UploadImageApiMetadataRequest {
+  projectId: string;
+  name: string;
+  folderId: string;
+  originalFileName: string;
+  isActive: boolean;
+  transformations: ImageTransformations;
+}
+
+export interface UploadImageResponse {
+  objectId: string;
+}

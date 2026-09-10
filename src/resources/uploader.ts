@@ -3,9 +3,12 @@ import { BaseResource } from './base';
 import { 
   UploadFileOptions, 
   UploadStreamOptions, 
+  UploadImageOptions,
   UniversalStream,
   UploadObjectMetadata, 
-  UploadObjectResponse 
+  UploadImageApiMetadataRequest,
+  UploadObjectResponse,
+  UploadImageResponse 
 } from '../types/types';
 
 export class UploaderResource extends BaseResource {
@@ -129,4 +132,34 @@ export class UploaderResource extends BaseResource {
       },
     });
   }
+
+  /**
+   * Uploads an in-memory image File or Blob object with optional transformations.
+   */
+  async uploadImage(
+    options: UploadImageOptions, 
+    file: File | Blob
+  ): Promise<UploadImageResponse> {
+    const targetFolderName = options.folderName ?? 'Home';
+    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+
+    const metadata: UploadImageApiMetadataRequest = {
+      projectId: this.client.getProjectId(),
+      name: options.name,
+      originalFileName: options.originalFileName,
+      folderId: folderId,
+      isActive: options.isActive ?? true,
+      transformations: options.transformations ?? {},
+    };
+
+    const formData = new FormData();
+    formData.append('metadata', JSON.stringify(metadata));
+    formData.append('file', file, options.originalFileName);
+
+    return this.client.request<UploadImageResponse>('/upload-image', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
 }
