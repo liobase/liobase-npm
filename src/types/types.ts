@@ -50,3 +50,33 @@ export interface UploadObjectMetadata {
 export interface UploadObjectResponse {
   objectId: string;
 }
+
+
+export const ALLOWED_FORMATS = ["jpeg", "jpg", "png", "webp", "avif"] as const;
+export type AllowedImageFormat = typeof ALLOWED_FORMATS[number];
+
+export interface CropOptions {
+  width: number;
+  height: number;
+}
+
+export interface ScaleOptions {
+  width: number;
+  height: number;
+}
+
+export interface CompressionOptions {
+  compress: boolean;
+}
+
+export interface ConversionOptions {
+  format: AllowedImageFormat;
+}
+
+export interface ImageTransformations {
+  crop?: CropOptions;
+  scale?: ScaleOptions;
+  compression?: CompressionOptions;
+  conversion?: ConversionOptions;
+}
+
