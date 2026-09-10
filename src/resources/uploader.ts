@@ -162,4 +162,97 @@ export class UploaderResource extends BaseResource {
     });
   }
 
+
+  async uploadImageStream(
+    options: UploadImageOptions,
+    stream: UniversalStream
+  ): Promise<UploadImageResponse> {
+    const targetFolderName = options.folderName ?? 'Home';
+    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+
+    const metadata: UploadImageApiMetadataRequest = {
+      projectId: this.client.getProjectId(),
+      name: options.name,
+      originalFileName: options.originalFileName,
+      folderId: folderId,
+      isActive: options.isActive ?? true,
+      transformations: options.transformations ?? {},
+    };
+
+    const boundary = `----LiobaseBoundary${Math.random().toString(36).substring(2)}`;
+
+    const metadataPart = 
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="metadata"\r\n` +
+      `Content-Type: application/json\r\n\r\n` +
+      `${JSON.stringify(metadata)}\r\n`;
+
+    const fileHeaderPart = 
+      `--${boundary}\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${options.originalFileName}"\r\n` +
+      `Content-Type: application/octet-stream\r\n\r\n`;
+
+    const footerPart = `\r\n--${boundary}--\r\n`;
+
+    const encoder = new TextEncoder();
+
+    // Handle Web Standard ReadableStream (Next.js App Router, Cloudflare Workers, Fastly, fetch Request)
+    if ('getReader' in stream && typeof stream.getReader === 'function') {
+      const reader = stream.getReader();
+
+      const webStream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(encoder.encode(metadataPart));
+          controller.enqueue(encoder.encode(fileHeaderPart));
+        },
+        async pull(controller) {
+          try {
+            const { done, value } = await reader.read();
+            if (done) {
+              controller.enqueue(encoder.encode(footerPart));
+              controller.close();
+            } else {
+              controller.enqueue(value);
+            }
+          } catch (err) {
+            controller.error(err);
+          }
+        },
+        cancel(reason) {
+          reader.cancel(reason);
+        }
+      });
+
+      return this.client.request<UploadImageResponse>('/upload-image', {
+        method: 'POST',
+        body: webStream,
+        duplex: 'half',
+        headers: {
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+      });
+    }
+
+    // Handle Node.js Readable stream (Express, Koa, Fastify, fs.createReadStream)
+    const bodyStream = Readable.from(async function* () {
+      yield Buffer.from(metadataPart, 'utf-8');
+      yield Buffer.from(fileHeaderPart, 'utf-8');
+
+      for await (const chunk of stream as Readable) {
+        yield typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      }
+
+      yield Buffer.from(footerPart, 'utf-8');
+    }());
+
+    return this.client.request<UploadImageResponse>('/upload-image', {
+      method: 'POST',
+      // @ts-expect-error Native fetch accepts Readable streams with duplex: 'half'
+      body: bodyStream,
+      duplex: 'half',
+      headers: {
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      },
+    });
+  }
 }
