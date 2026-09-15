@@ -141,8 +141,8 @@ export class LiobaseSDK {
 
     const headers: Record<string, string> = {
       'Accept': 'application/json',
-      'API-Key': this.apiKey,
-      'API-Secret': this.apiSecret,
+      'X-API-Key': this.apiKey,
+      'X-API-Secret': this.apiSecret,
       ...(options.headers as Record<string, string>),
     };
 
