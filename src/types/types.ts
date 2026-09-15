@@ -15,6 +15,15 @@ export interface GetAllFoldersApiResponse {
   folders: FolderApi[];
 }
 
+export interface CollectionApi {
+  collectionId: string;
+  collectionName: string;
+}
+
+export interface GetAllCollectionsApiResponse {
+  collections: CollectionApi[];
+}
+
 export interface GetProjectIdApiResponse {
   projectId: string;
 }
@@ -27,6 +36,8 @@ export interface UploadFileOptions {
   name: string;
   originalFileName: string;
   folderName?: string;
+  collectionName?: string;
+  collectionId?: string;
   isActive?: boolean;
 }
 
@@ -34,6 +45,8 @@ export interface UploadStreamOptions {
   name: string;
   originalFileName: string;
   folderName?: string;
+  collectionName?: string;
+  collectionId?: string;
   isActive?: boolean;
 }
 
@@ -44,13 +57,13 @@ export interface UploadObjectMetadata {
   name: string;
   originalFileName: string;
   folderId: string;
+  collectionId?: string;
   isActive: boolean;
 }
 
 export interface UploadObjectResponse {
   objectId: string;
 }
-
 
 export const ALLOWED_FORMATS = ["jpeg", "jpg", "png", "webp", "avif"] as const;
 export type AllowedImageFormat = typeof ALLOWED_FORMATS[number];
@@ -80,11 +93,12 @@ export interface ImageTransformations {
   conversion?: ConversionOptions;
 }
 
-
 export interface UploadImageOptions {
   name: string;
   originalFileName: string;
   folderName?: string;
+  collectionName?: string;
+  collectionId?: string;
   isActive?: boolean;
   transformations?: ImageTransformations;
 }
@@ -93,6 +107,7 @@ export interface UploadImageApiMetadataRequest {
   projectId: string;
   name: string;
   folderId: string;
+  collectionId?: string;
   originalFileName: string;
   isActive: boolean;
   transformations: ImageTransformations;
