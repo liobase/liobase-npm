@@ -2,3 +2,7 @@ src/
 tsconfig.json
 node_modules/
 .pnpm-debug.log
+
+tests/
+jest.config.js
+vitest.config.ts
