@@ -2,7 +2,9 @@ import {
   ClientOptions, 
   GetProjectIdApiResponse, 
   GetAllFoldersApiResponse, 
-  CreateFolderApiResponse 
+  CreateFolderApiResponse,
+  GetAllCollectionsApiResponse,
+  CollectionApi
 } from './types/types';
 import { ApiError } from './errors';
 import { UploaderResource } from './resources/uploader';
@@ -14,6 +16,7 @@ export class LiobaseSDK {
 
   private projectId?: string;
   private folderCache: Map<string, string> = new Map();
+  private collectionCache: Map<string, string> = new Map();
   private initPromise: Promise<void> | null = null;
 
   public uploader: UploaderResource;
@@ -41,9 +44,10 @@ export class LiobaseSDK {
     if (!this.initPromise) {
       this.initPromise = (async () => {
         try {
-          const [projectData, foldersData] = await Promise.all([
+          const [projectData, foldersData, collectionsData] = await Promise.all([
             this.request<GetProjectIdApiResponse>('/find-project-id', { method: 'GET' }),
             this.request<GetAllFoldersApiResponse>('/all-folders', { method: 'GET' }),
+            this.request<GetAllCollectionsApiResponse>('/all-collections', { method: 'GET' }),
           ]);
 
           this.projectId = projectData.projectId;
@@ -52,6 +56,13 @@ export class LiobaseSDK {
           if (foldersData && Array.isArray(foldersData.folders)) {
             for (const item of foldersData.folders) {
               this.folderCache.set(item.folderName, item.folderId);
+            }
+          }
+
+          this.collectionCache.clear();
+          if (collectionsData && Array.isArray(collectionsData.collections)) {
+            for (const item of collectionsData.collections) {
+              this.collectionCache.set(item.collectionName, item.collectionId);
             }
           }
         } catch (err) {
@@ -90,6 +101,32 @@ export class LiobaseSDK {
     folderId = response.folderId;
     this.folderCache.set(folderName, folderId);
     return folderId;
+  }
+
+  /**
+   * Resolves collection name to collection ID.
+   * Throws an error if the collection does not exist.
+   */
+  public async getCollectionId(collectionName: string): Promise<string> {
+    await this.ensureInitialized();
+
+    const collectionId = this.collectionCache.get(collectionName);
+    if (!collectionId) {
+      throw new Error(`Collection "${collectionName}" does not exist. Users cannot create new collections.`);
+    }
+
+    return collectionId;
+  }
+
+  /**
+   * Returns all available collections for the configured project.
+   */
+  public async getCollections(): Promise<CollectionApi[]> {
+    await this.ensureInitialized();
+    return Array.from(this.collectionCache.entries()).map(([collectionName, collectionId]) => ({
+      collectionId,
+      collectionName,
+    }));
   }
 
   public async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

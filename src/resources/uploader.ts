@@ -12,18 +12,32 @@ import {
 } from '../types/types';
 
 export class UploaderResource extends BaseResource {
+  private async resolveCollectionId(
+    options: UploadFileOptions | UploadStreamOptions | UploadImageOptions
+  ): Promise<string | undefined> {
+    if (options.collectionId) {
+      return options.collectionId;
+    }
+    if (options.collectionName) {
+      return this.client.getCollectionId(options.collectionName);
+    }
+    return undefined;
+  }
+
   /**
    * Uploads an in-memory File or Blob object.
    */
   async uploadFile(options: UploadFileOptions, file: File | Blob): Promise<UploadObjectResponse> {
     const targetFolderName = options.folderName ?? 'Home';
     const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const collectionId = await this.resolveCollectionId(options);
 
     const metadata: UploadObjectMetadata = {
       projectId: this.client.getProjectId(),
       name: options.name,
       originalFileName: options.originalFileName,
       folderId: folderId,
+      ...(collectionId && { collectionId }),
       isActive: options.isActive ?? true,
     };
 
@@ -47,12 +61,14 @@ export class UploaderResource extends BaseResource {
   ): Promise<UploadObjectResponse> {
     const targetFolderName = options.folderName ?? 'Home';
     const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const collectionId = await this.resolveCollectionId(options);
 
     const metadata: UploadObjectMetadata = {
       projectId: this.client.getProjectId(),
       name: options.name,
       originalFileName: options.originalFileName,
       folderId: folderId,
+      ...(collectionId && { collectionId }),
       isActive: options.isActive ?? true,
     };
 
@@ -73,7 +89,7 @@ export class UploaderResource extends BaseResource {
 
     const encoder = new TextEncoder();
 
-    // Handle Web Standard ReadableStream (Next.js App Router, Cloudflare Workers, Fastly, fetch Request)
+    // Handle Web Standard ReadableStream
     if ('getReader' in stream && typeof stream.getReader === 'function') {
       const reader = stream.getReader();
 
@@ -110,7 +126,7 @@ export class UploaderResource extends BaseResource {
       });
     }
 
-    // Handle Node.js Readable stream (Express, Koa, Fastify, fs.createReadStream)
+    // Handle Node.js Readable stream
     const bodyStream = Readable.from(async function* () {
       yield Buffer.from(metadataPart, 'utf-8');
       yield Buffer.from(fileHeaderPart, 'utf-8');
@@ -142,12 +158,14 @@ export class UploaderResource extends BaseResource {
   ): Promise<UploadImageResponse> {
     const targetFolderName = options.folderName ?? 'Home';
     const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const collectionId = await this.resolveCollectionId(options);
 
     const metadata: UploadImageApiMetadataRequest = {
       projectId: this.client.getProjectId(),
       name: options.name,
       originalFileName: options.originalFileName,
       folderId: folderId,
+      ...(collectionId && { collectionId }),
       isActive: options.isActive ?? true,
       transformations: options.transformations ?? {},
     };
@@ -162,19 +180,20 @@ export class UploaderResource extends BaseResource {
     });
   }
 
-
   async uploadImageStream(
     options: UploadImageOptions,
     stream: UniversalStream
   ): Promise<UploadImageResponse> {
     const targetFolderName = options.folderName ?? 'Home';
     const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const collectionId = await this.resolveCollectionId(options);
 
     const metadata: UploadImageApiMetadataRequest = {
       projectId: this.client.getProjectId(),
       name: options.name,
       originalFileName: options.originalFileName,
       folderId: folderId,
+      ...(collectionId && { collectionId }),
       isActive: options.isActive ?? true,
       transformations: options.transformations ?? {},
     };
@@ -196,7 +215,7 @@ export class UploaderResource extends BaseResource {
 
     const encoder = new TextEncoder();
 
-    // Handle Web Standard ReadableStream (Next.js App Router, Cloudflare Workers, Fastly, fetch Request)
+    // Handle Web Standard ReadableStream
     if ('getReader' in stream && typeof stream.getReader === 'function') {
       const reader = stream.getReader();
 
@@ -233,7 +252,7 @@ export class UploaderResource extends BaseResource {
       });
     }
 
-    // Handle Node.js Readable stream (Express, Koa, Fastify, fs.createReadStream)
+    // Handle Node.js Readable stream
     const bodyStream = Readable.from(async function* () {
       yield Buffer.from(metadataPart, 'utf-8');
       yield Buffer.from(fileHeaderPart, 'utf-8');
