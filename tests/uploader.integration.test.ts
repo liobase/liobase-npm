@@ -1,5 +1,7 @@
+/// <reference types="node" />
+
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { LiobaseSDK } from '../client';
+import { LiobaseSDK } from '../src/client';
 import fs from 'fs';
 import path from 'path';
 

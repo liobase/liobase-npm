@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { LiobaseSDK } from '../client';
+import { LiobaseSDK } from '../src/client';
 
 describe('LiobaseSDK Client', () => {
   let sdk: LiobaseSDK;
