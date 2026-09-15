@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { LiobaseSDK } from '../src/client';
 
