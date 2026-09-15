@@ -2,7 +2,7 @@ src/
 tsconfig.json
 node_modules/
 .pnpm-debug.log
-
+.env
 tests/
 jest.config.js
 vitest.config.ts
