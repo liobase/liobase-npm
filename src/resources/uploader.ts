@@ -1,77 +1,57 @@
 import { Readable } from 'stream';
 import { BaseResource } from './base';
 import { 
+  BaseUploadOptions,
+  BaseUploadMetadata,
   UploadFileOptions, 
   UploadStreamOptions, 
   UploadImageOptions,
   UniversalStream,
-  UploadObjectMetadata, 
-  UploadImageApiMetadataRequest,
   UploadObjectResponse,
   UploadImageResponse 
 } from '../types/types';
 
 export class UploaderResource extends BaseResource {
-  private async resolveCollectionId(
-    options: UploadFileOptions | UploadStreamOptions | UploadImageOptions
-  ): Promise<string | undefined> {
-    if (options.collectionId) {
-      return options.collectionId;
-    }
-    if (options.collectionName) {
-      return this.client.getCollectionId(options.collectionName);
-    }
+  private async resolveCollectionId(options: BaseUploadOptions): Promise<string | undefined> {
+    if (options.collectionId) return options.collectionId;
+    if (options.collectionName) return this.client.getCollectionId(options.collectionName);
     return undefined;
   }
 
-  /**
-   * Uploads an in-memory File or Blob object.
-   */
-  async uploadFile(options: UploadFileOptions, file: File | Blob): Promise<UploadObjectResponse> {
+  private async buildBaseMetadata(options: BaseUploadOptions): Promise<BaseUploadMetadata> {
     const targetFolderName = options.folderName ?? 'Home';
     const folderId = await this.client.getOrCreateFolderId(targetFolderName);
     const collectionId = await this.resolveCollectionId(options);
 
-    const metadata: UploadObjectMetadata = {
+    return {
       projectId: this.client.getProjectId(),
       name: options.name,
       originalFileName: options.originalFileName,
-      folderId: folderId,
+      folderId,
       ...(collectionId && { collectionId }),
       isActive: options.isActive ?? true,
     };
-
-    const formData = new FormData();
-    formData.append('metadata', JSON.stringify(metadata));
-    formData.append('file', file, options.originalFileName);
-
-    return this.client.request<UploadObjectResponse>('/upload-object', {
-      method: 'POST',
-      body: formData,
-    });
   }
 
-  /**
-   * True zero-RAM streaming upload method.
-   * Supports Node.js Readable streams and Web Standard ReadableStreams.
-   */
-  async uploadFileStream(
-    options: UploadStreamOptions,
+  private formatUploadResponse<T extends UploadObjectResponse | UploadImageResponse>(
+    raw: { objectId: string }
+  ): T {
+    const projectId = this.client.getProjectId();
+    const objectId = raw.objectId;
+
+    return {
+      objectId,
+      public_id: objectId,
+      secure_url: `https://cdn.liobase.com/public/${projectId}/${objectId}`,
+    } as T;
+  }
+
+  private async executeStreamUpload(
+    endpoint: string,
+    metadata: Record<string, any>,
+    originalFileName: string,
     stream: UniversalStream
-  ): Promise<UploadObjectResponse> {
-    const targetFolderName = options.folderName ?? 'Home';
-    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
-    const collectionId = await this.resolveCollectionId(options);
-
-    const metadata: UploadObjectMetadata = {
-      projectId: this.client.getProjectId(),
-      name: options.name,
-      originalFileName: options.originalFileName,
-      folderId: folderId,
-      ...(collectionId && { collectionId }),
-      isActive: options.isActive ?? true,
-    };
-
+  ): Promise<{ objectId: string }> {
     const boundary = `----LiobaseBoundary${Math.random().toString(36).substring(2)}`;
 
     const metadataPart = 
@@ -82,18 +62,17 @@ export class UploaderResource extends BaseResource {
 
     const fileHeaderPart = 
       `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${options.originalFileName}"\r\n` +
+      `Content-Disposition: form-data; name="file"; filename="${originalFileName}"\r\n` +
       `Content-Type: application/octet-stream\r\n\r\n`;
 
     const footerPart = `\r\n--${boundary}--\r\n`;
-
     const encoder = new TextEncoder();
 
-    // Handle Web Standard ReadableStream
+    let bodyStream: ReadableStream | Readable;
+
     if ('getReader' in stream && typeof stream.getReader === 'function') {
       const reader = stream.getReader();
-
-      const webStream = new ReadableStream<Uint8Array>({
+      bodyStream = new ReadableStream<Uint8Array>({
         async start(controller) {
           controller.enqueue(encoder.encode(metadataPart));
           controller.enqueue(encoder.encode(fileHeaderPart));
@@ -111,42 +90,63 @@ export class UploaderResource extends BaseResource {
             controller.error(err);
           }
         },
-        cancel(reason) {
-          reader.cancel(reason);
+        cancel(reason) { 
+          reader.cancel(reason); 
         }
       });
-
-      return this.client.request<UploadObjectResponse>('/upload-object', {
-        method: 'POST',
-        body: webStream,
-        duplex: 'half',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        },
-      });
+    } else {
+      bodyStream = Readable.from(async function* () {
+        yield Buffer.from(metadataPart, 'utf-8');
+        yield Buffer.from(fileHeaderPart, 'utf-8');
+        for await (const chunk of stream as Readable) {
+          yield typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+        }
+        yield Buffer.from(footerPart, 'utf-8');
+      }());
     }
 
-    // Handle Node.js Readable stream
-    const bodyStream = Readable.from(async function* () {
-      yield Buffer.from(metadataPart, 'utf-8');
-      yield Buffer.from(fileHeaderPart, 'utf-8');
-
-      for await (const chunk of stream as Readable) {
-        yield typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
-      }
-
-      yield Buffer.from(footerPart, 'utf-8');
-    }());
-
-    return this.client.request<UploadObjectResponse>('/upload-object', {
+    return this.client.request<{ objectId: string }>(endpoint, {
       method: 'POST',
-      // @ts-expect-error Native fetch accepts Readable streams with duplex: 'half'
-      body: bodyStream,
+      body: bodyStream as any,
       duplex: 'half',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
+      headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
     });
+  }
+
+  /**
+   * Uploads an in-memory File or Blob object.
+   */
+  async uploadFile(options: UploadFileOptions, file: File | Blob): Promise<UploadObjectResponse> {
+    const metadata = await this.buildBaseMetadata(options);
+
+    const formData = new FormData();
+    formData.append('metadata', JSON.stringify(metadata));
+    formData.append('file', file, options.originalFileName);
+
+    const rawResponse = await this.client.request<{ objectId: string }>('/upload-object', {
+      method: 'POST',
+      body: formData,
+    });
+
+    return this.formatUploadResponse<UploadObjectResponse>(rawResponse);
+  }
+
+  /**
+   * Uploads a file stream (Node.js Readable or Web Standard ReadableStream).
+   */
+  async uploadFileStream(
+    options: UploadStreamOptions,
+    stream: UniversalStream
+  ): Promise<UploadObjectResponse> {
+    const metadata = await this.buildBaseMetadata(options);
+    const rawResponse = await this.executeStreamUpload(
+      '/upload-object', 
+      metadata, 
+      options.originalFileName, 
+      stream
+    );
+    
+    return this.formatUploadResponse<UploadObjectResponse>(rawResponse);
   }
 
   /**
@@ -156,17 +156,9 @@ export class UploaderResource extends BaseResource {
     options: UploadImageOptions, 
     file: File | Blob
   ): Promise<UploadImageResponse> {
-    const targetFolderName = options.folderName ?? 'Home';
-    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
-    const collectionId = await this.resolveCollectionId(options);
-
-    const metadata: UploadImageApiMetadataRequest = {
-      projectId: this.client.getProjectId(),
-      name: options.name,
-      originalFileName: options.originalFileName,
-      folderId: folderId,
-      ...(collectionId && { collectionId }),
-      isActive: options.isActive ?? true,
+    const baseMetadata = await this.buildBaseMetadata(options);
+    const metadata = {
+      ...baseMetadata,
       transformations: options.transformations ?? {},
     };
 
@@ -174,104 +166,34 @@ export class UploaderResource extends BaseResource {
     formData.append('metadata', JSON.stringify(metadata));
     formData.append('file', file, options.originalFileName);
 
-    return this.client.request<UploadImageResponse>('/upload-image', {
+    const rawResponse = await this.client.request<{ objectId: string }>('/upload-image', {
       method: 'POST',
       body: formData,
     });
+
+    return this.formatUploadResponse<UploadImageResponse>(rawResponse);
   }
 
+  /**
+   * Uploads an image stream (Node.js Readable or Web Standard ReadableStream) with optional transformations.
+   */
   async uploadImageStream(
     options: UploadImageOptions,
     stream: UniversalStream
   ): Promise<UploadImageResponse> {
-    const targetFolderName = options.folderName ?? 'Home';
-    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
-    const collectionId = await this.resolveCollectionId(options);
-
-    const metadata: UploadImageApiMetadataRequest = {
-      projectId: this.client.getProjectId(),
-      name: options.name,
-      originalFileName: options.originalFileName,
-      folderId: folderId,
-      ...(collectionId && { collectionId }),
-      isActive: options.isActive ?? true,
+    const baseMetadata = await this.buildBaseMetadata(options);
+    const metadata = {
+      ...baseMetadata,
       transformations: options.transformations ?? {},
     };
 
-    const boundary = `----LiobaseBoundary${Math.random().toString(36).substring(2)}`;
+    const rawResponse = await this.executeStreamUpload(
+      '/upload-image', 
+      metadata, 
+      options.originalFileName, 
+      stream
+    );
 
-    const metadataPart = 
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="metadata"\r\n` +
-      `Content-Type: application/json\r\n\r\n` +
-      `${JSON.stringify(metadata)}\r\n`;
-
-    const fileHeaderPart = 
-      `--${boundary}\r\n` +
-      `Content-Disposition: form-data; name="file"; filename="${options.originalFileName}"\r\n` +
-      `Content-Type: application/octet-stream\r\n\r\n`;
-
-    const footerPart = `\r\n--${boundary}--\r\n`;
-
-    const encoder = new TextEncoder();
-
-    // Handle Web Standard ReadableStream
-    if ('getReader' in stream && typeof stream.getReader === 'function') {
-      const reader = stream.getReader();
-
-      const webStream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          controller.enqueue(encoder.encode(metadataPart));
-          controller.enqueue(encoder.encode(fileHeaderPart));
-        },
-        async pull(controller) {
-          try {
-            const { done, value } = await reader.read();
-            if (done) {
-              controller.enqueue(encoder.encode(footerPart));
-              controller.close();
-            } else {
-              controller.enqueue(value);
-            }
-          } catch (err) {
-            controller.error(err);
-          }
-        },
-        cancel(reason) {
-          reader.cancel(reason);
-        }
-      });
-
-      return this.client.request<UploadImageResponse>('/upload-image', {
-        method: 'POST',
-        body: webStream,
-        duplex: 'half',
-        headers: {
-          'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        },
-      });
-    }
-
-    // Handle Node.js Readable stream
-    const bodyStream = Readable.from(async function* () {
-      yield Buffer.from(metadataPart, 'utf-8');
-      yield Buffer.from(fileHeaderPart, 'utf-8');
-
-      for await (const chunk of stream as Readable) {
-        yield typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
-      }
-
-      yield Buffer.from(footerPart, 'utf-8');
-    }());
-
-    return this.client.request<UploadImageResponse>('/upload-image', {
-      method: 'POST',
-      // @ts-expect-error Native fetch accepts Readable streams with duplex: 'half'
-      body: bodyStream,
-      duplex: 'half',
-      headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      },
-    });
+    return this.formatUploadResponse<UploadImageResponse>(rawResponse);
   }
 }
