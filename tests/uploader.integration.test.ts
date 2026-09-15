@@ -7,16 +7,16 @@ import path from 'path';
 
 describe('UploaderResource Integration Tests', () => {
   let sdk: LiobaseSDK;
-  // Point to the static mock image
   const testFilePath = path.join(__dirname, 'mocks', 'image.jpg');
 
   beforeAll(async () => {
-    const apiKey = process.env.LIOBASE_API_KEY;
-    const apiSecret = process.env.LIOBASE_API_SECRET;
-    const baseUrl = process.env.LIOBASE_BASE_URL || 'https://api.liobase.com/api';
+    // Read with the VITE_ prefix
+    const apiKey = process.env.VITE_LIOBASE_API_KEY;
+    const apiSecret = process.env.VITE_LIOBASE_API_SECRET;
+    const baseUrl = process.env.VITE_LIOBASE_BASE_URL || 'http://localhost:8080';
 
     if (!apiKey || !apiSecret) {
-      throw new Error('Missing LIOBASE_API_KEY or LIOBASE_API_SECRET in .env file.');
+      throw new Error('Missing VITE_LIOBASE_API_KEY or VITE_LIOBASE_API_SECRET in .env file.');
     }
 
     sdk = new LiobaseSDK();
