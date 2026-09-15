@@ -44,13 +44,15 @@ export class LiobaseSDK {
     if (!this.initPromise) {
       this.initPromise = (async () => {
         try {
-          const [projectData, foldersData, collectionsData] = await Promise.all([
-            this.request<GetProjectIdApiResponse>('/find-project-id', { method: 'GET' }),
-            this.request<GetAllFoldersApiResponse>('/all-folders', { method: 'GET' }),
-            this.request<GetAllCollectionsApiResponse>('/all-collections', { method: 'GET' }),
-          ]);
-
+          // 1. Fetch project ID first
+          const projectData = await this.request<GetProjectIdApiResponse>('/find-project-id', { method: 'GET' });
           this.projectId = projectData.projectId;
+
+          // 2. Fetch folders and collections using the retrieved projectId
+          const [foldersData, collectionsData] = await Promise.all([
+            this.request<GetAllFoldersApiResponse>(`/all-folders?projectId=${this.projectId}`, { method: 'GET' }),
+            this.request<GetAllCollectionsApiResponse>(`/all-collections?projectId=${this.projectId}`, { method: 'GET' }),
+          ]);
           
           this.folderCache.clear();
           if (foldersData && Array.isArray(foldersData.folders)) {
