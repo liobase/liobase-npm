@@ -10,15 +10,19 @@ export declare class UploaderResource extends BaseResource {
      */
     uploadFile(options: UploadFileOptions, file: File | Blob): Promise<UploadObjectResponse>;
     /**
-     * Uploads a file stream (Node.js Readable or Web Standard ReadableStream).
+     * Uploads a file stream
+     * (Node.js Readable or Web Standard ReadableStream).
      */
     uploadFileStream(options: UploadStreamOptions, stream: UniversalStream): Promise<UploadObjectResponse>;
     /**
-     * Uploads an in-memory image File or Blob object with optional transformations.
+     * Uploads an in-memory image File or Blob object
+     * with optional transformations.
      */
     uploadImage(options: UploadImageOptions, file: File | Blob): Promise<UploadImageResponse>;
     /**
-     * Uploads an image stream (Node.js Readable or Web Standard ReadableStream) with optional transformations.
+     * Uploads an image stream
+     * (Node.js Readable or Web Standard ReadableStream)
+     * with optional transformations.
      */
     uploadImageStream(options: UploadImageOptions, stream: UniversalStream): Promise<UploadImageResponse>;
 }

@@ -24,13 +24,21 @@ var BaseResource = class {
 // src/resources/uploader.ts
 var UploaderResource = class extends BaseResource {
   async resolveCollectionId(options) {
-    if (options.collectionId) return options.collectionId;
-    if (options.collectionName) return this.client.getCollectionId(options.collectionName);
+    if (options.collectionId) {
+      return options.collectionId;
+    }
+    if (options.collectionName) {
+      return this.client.getCollectionId(
+        options.collectionName
+      );
+    }
     return void 0;
   }
   async buildBaseMetadata(options) {
     const targetFolderName = options.folderName ?? "Home";
-    const folderId = await this.client.getOrCreateFolderId(targetFolderName);
+    const folderId = await this.client.getOrCreateFolderId(
+      targetFolderName
+    );
     const collectionId = await this.resolveCollectionId(options);
     return {
       projectId: this.client.getProjectId(),
@@ -50,7 +58,7 @@ var UploaderResource = class extends BaseResource {
       secure_url: `https://cdn.liobase.com/public/${projectId}/${objectId}`
     };
   }
-  async executeStreamUpload(endpoint, metadata, originalFileName, stream) {
+  async executeStreamUpload(endpoint, metadata, originalFileName, stream, fieldName = "file") {
     const boundary = `----LiobaseBoundary${Math.random().toString(36).substring(2)}`;
     const metadataPart = `--${boundary}\r
 Content-Disposition: form-data; name="metadata"\r
@@ -59,7 +67,7 @@ Content-Type: application/json\r
 ${JSON.stringify(metadata)}\r
 `;
     const fileHeaderPart = `--${boundary}\r
-Content-Disposition: form-data; name="file"; filename="${originalFileName}"\r
+Content-Disposition: form-data; name="${fieldName}"; filename="${originalFileName}"\r
 Content-Type: application/octet-stream\r
 \r
 `;
@@ -72,17 +80,34 @@ Content-Type: application/octet-stream\r
       const reader = stream.getReader();
       bodyStream = new ReadableStream({
         async start(controller) {
-          controller.enqueue(encoder.encode(metadataPart));
-          controller.enqueue(encoder.encode(fileHeaderPart));
+          controller.enqueue(
+            encoder.encode(
+              metadataPart
+            )
+          );
+          controller.enqueue(
+            encoder.encode(
+              fileHeaderPart
+            )
+          );
         },
         async pull(controller) {
           try {
-            const { done, value } = await reader.read();
+            const {
+              done,
+              value
+            } = await reader.read();
             if (done) {
-              controller.enqueue(encoder.encode(footerPart));
+              controller.enqueue(
+                encoder.encode(
+                  footerPart
+                )
+              );
               controller.close();
             } else {
-              controller.enqueue(value);
+              controller.enqueue(
+                value
+              );
             }
           } catch (err) {
             controller.error(err);
@@ -93,72 +118,127 @@ Content-Type: application/octet-stream\r
         }
       });
     } else {
-      bodyStream = Readable.from((async function* () {
-        yield Buffer.from(metadataPart, "utf-8");
-        yield Buffer.from(fileHeaderPart, "utf-8");
-        for await (const chunk of stream) {
-          yield typeof chunk === "string" ? Buffer.from(chunk) : chunk;
-        }
-        yield Buffer.from(footerPart, "utf-8");
-      })());
+      bodyStream = Readable.from(
+        (async function* () {
+          yield Buffer.from(
+            metadataPart,
+            "utf-8"
+          );
+          yield Buffer.from(
+            fileHeaderPart,
+            "utf-8"
+          );
+          for await (const chunk of stream) {
+            yield typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+          }
+          yield Buffer.from(
+            footerPart,
+            "utf-8"
+          );
+        })()
+      );
     }
-    return this.client.request(endpoint, {
-      method: "POST",
-      body: bodyStream,
-      duplex: "half",
-      headers: { "Content-Type": `multipart/form-data; boundary=${boundary}` }
-    });
+    return this.client.request(
+      endpoint,
+      {
+        method: "POST",
+        body: bodyStream,
+        duplex: "half",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`
+        }
+      }
+    );
   }
   /**
    * Uploads an in-memory File or Blob object.
    */
   async uploadFile(options, file) {
-    const metadata = await this.buildBaseMetadata(options);
+    const metadata = await this.buildBaseMetadata(
+      options
+    );
     const formData = new FormData();
-    formData.append("metadata", JSON.stringify(metadata));
-    formData.append("file", file, options.originalFileName);
-    const rawResponse = await this.client.request("/upload-object", {
-      method: "POST",
-      body: formData
-    });
-    return this.formatUploadResponse(rawResponse);
+    formData.append(
+      "metadata",
+      JSON.stringify(metadata)
+    );
+    formData.append(
+      "file",
+      file,
+      options.originalFileName
+    );
+    const rawResponse = await this.client.request(
+      "/upload-object",
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+    return this.formatUploadResponse(
+      rawResponse
+    );
   }
   /**
-   * Uploads a file stream (Node.js Readable or Web Standard ReadableStream).
+   * Uploads a file stream
+   * (Node.js Readable or Web Standard ReadableStream).
    */
   async uploadFileStream(options, stream) {
-    const metadata = await this.buildBaseMetadata(options);
+    const metadata = await this.buildBaseMetadata(
+      options
+    );
     const rawResponse = await this.executeStreamUpload(
       "/upload-object",
       metadata,
       options.originalFileName,
-      stream
+      stream,
+      "file"
     );
-    return this.formatUploadResponse(rawResponse);
+    return this.formatUploadResponse(
+      rawResponse
+    );
   }
   /**
-   * Uploads an in-memory image File or Blob object with optional transformations.
+   * Uploads an in-memory image File or Blob object
+   * with optional transformations.
    */
   async uploadImage(options, file) {
-    const baseMetadata = await this.buildBaseMetadata(options);
+    const baseMetadata = await this.buildBaseMetadata(
+      options
+    );
     const metadata = {
       ...baseMetadata,
       transformations: options.transformations ?? {}
     };
     const formData = new FormData();
-    formData.append("metadata", JSON.stringify(metadata));
-    formData.append("file", file, options.originalFileName);
-    const rawResponse = await this.client.request("/upload-image", {
-      method: "POST",
-      body: formData
-    });
-    return this.formatUploadResponse(rawResponse);
+    formData.append(
+      "metadata",
+      JSON.stringify(metadata)
+    );
+    formData.append(
+      "image",
+      file,
+      options.originalFileName
+    );
+    const rawResponse = await this.client.request(
+      "/upload-image",
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+    return this.formatUploadResponse(
+      rawResponse
+    );
   }
   /**
-   * Uploads an image stream (Node.js Readable or Web Standard ReadableStream) with optional transformations.
+   * Uploads an image stream
+   * (Node.js Readable or Web Standard ReadableStream)
+   * with optional transformations.
    */
   async uploadImageStream(options, stream) {
-    const baseMetadata = await this.buildBaseMetadata(options);
+    const baseMetadata = await this.buildBaseMetadata(
+      options
+    );
     const metadata = {
       ...baseMetadata,
       transformations: options.transformations ?? {}
@@ -167,9 +247,12 @@ Content-Type: application/octet-stream\r
       "/upload-image",
       metadata,
       options.originalFileName,
-      stream
+      stream,
+      "image"
     );
-    return this.formatUploadResponse(rawResponse);
+    return this.formatUploadResponse(
+      rawResponse
+    );
   }
 };
 
@@ -188,7 +271,9 @@ var LiobaseSDK = class {
   }
   config(options) {
     if (!options.apiKey || !options.apiSecret) {
-      throw new Error("Both apiKey and apiSecret are required in liobase.config().");
+      throw new Error(
+        "Both apiKey and apiSecret are required in liobase.config()."
+      );
     }
     this.apiKey = options.apiKey;
     this.apiSecret = options.apiSecret;
@@ -201,22 +286,49 @@ var LiobaseSDK = class {
     if (!this.initPromise) {
       this.initPromise = (async () => {
         try {
-          const [projectData, foldersData, collectionsData] = await Promise.all([
-            this.request("/find-project-id", { method: "GET" }),
-            this.request("/all-folders", { method: "GET" }),
-            this.request("/all-collections", { method: "GET" })
-          ]);
+          const projectData = await this.request(
+            "/find-project-id",
+            {
+              method: "GET"
+            }
+          );
           this.projectId = projectData.projectId;
+          const [foldersData, collectionsData] = await Promise.all([
+            this.request(
+              "/all-folders",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  projectId: this.projectId
+                })
+              }
+            ),
+            this.request(
+              "/all-collections",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  projectId: this.projectId
+                })
+              }
+            )
+          ]);
           this.folderCache.clear();
           if (foldersData && Array.isArray(foldersData.folders)) {
             for (const item of foldersData.folders) {
-              this.folderCache.set(item.folderName, item.folderId);
+              this.folderCache.set(
+                item.folderName,
+                item.folderId
+              );
             }
           }
           this.collectionCache.clear();
           if (collectionsData && Array.isArray(collectionsData.collections)) {
             for (const item of collectionsData.collections) {
-              this.collectionCache.set(item.collectionName, item.collectionId);
+              this.collectionCache.set(
+                item.collectionName,
+                item.collectionId
+              );
             }
           }
         } catch (err) {
@@ -229,7 +341,9 @@ var LiobaseSDK = class {
   }
   getProjectId() {
     if (!this.projectId) {
-      throw new Error("SDK is not initialized. Call ensureInitialized() first.");
+      throw new Error(
+        "SDK is not initialized. Call ensureInitialized() first."
+      );
     }
     return this.projectId;
   }
@@ -239,13 +353,16 @@ var LiobaseSDK = class {
     if (folderId) {
       return folderId;
     }
-    const response = await this.request("/create-folder", {
-      method: "POST",
-      body: JSON.stringify({
-        projectId: this.getProjectId(),
-        name: folderName
-      })
-    });
+    const response = await this.request(
+      "/create-folder",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: this.getProjectId(),
+          name: folderName
+        })
+      }
+    );
     folderId = response.folderId;
     this.folderCache.set(folderName, folderId);
     return folderId;
@@ -258,7 +375,9 @@ var LiobaseSDK = class {
     await this.ensureInitialized();
     const collectionId = this.collectionCache.get(collectionName);
     if (!collectionId) {
-      throw new Error(`Collection "${collectionName}" does not exist. Users cannot create new collections.`);
+      throw new Error(
+        `Collection "${collectionName}" does not exist. Users cannot create new collections.`
+      );
     }
     return collectionId;
   }
@@ -267,19 +386,25 @@ var LiobaseSDK = class {
    */
   async getCollections() {
     await this.ensureInitialized();
-    return Array.from(this.collectionCache.entries()).map(([collectionName, collectionId]) => ({
-      collectionId,
-      collectionName
-    }));
+    return Array.from(
+      this.collectionCache.entries()
+    ).map(
+      ([collectionName, collectionId]) => ({
+        collectionId,
+        collectionName
+      })
+    );
   }
   async request(endpoint, options = {}) {
     if (!this.apiKey || !this.apiSecret) {
-      throw new Error("SDK is not configured. Call config() first.");
+      throw new Error(
+        "SDK is not configured. Call config() first."
+      );
     }
     const formattedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
     const url = `${this.baseUrl}${formattedEndpoint}`;
     const headers = {
-      "Accept": "application/json",
+      Accept: "application/json",
       "API-Key": this.apiKey,
       "API-Secret": this.apiSecret,
       ...options.headers
@@ -287,12 +412,23 @@ var LiobaseSDK = class {
     if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
       headers["Content-Type"] = "application/json";
     }
-    const response = await fetch(url, { ...options, headers });
+    const response = await fetch(url, {
+      ...options,
+      headers
+    });
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const rawText = await response.text();
+      let errorData = {};
+      try {
+        errorData = JSON.parse(rawText);
+      } catch {
+        errorData = {
+          raw: rawText
+        };
+      }
       throw new ApiError(
         response.status,
-        errorData.message || `Request failed with status ${response.status}`,
+        errorData.message || errorData.raw || `Request failed with status ${response.status}`,
         errorData
       );
     }
