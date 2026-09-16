@@ -24,8 +24,9 @@ describe('UploaderResource Integration Tests', () => {
     await sdk.ensureInitialized();
   });
 
+  // --- IMAGE UPLOADS ---
+
   it('should successfully upload an image as a Blob', async () => {
-    // Read local image and wrap in a Blob
     const fileBuffer = fs.readFileSync(testFilePath);
     const imageBlob = new Blob([fileBuffer], { type: 'image/jpeg' });
 
@@ -41,10 +42,10 @@ describe('UploaderResource Integration Tests', () => {
 
     expect(response).toBeDefined();
     expect(response.objectId).toBeDefined();
+    expect(response.secure_url).toContain('https://cdn.liobase.com/public/');
   });
 
   it('should successfully upload an image as a Stream', async () => {
-    // Readable stream
     const imageStream = fs.createReadStream(testFilePath);
 
     const response = await sdk.uploader.uploadImageStream(
@@ -55,6 +56,27 @@ describe('UploaderResource Integration Tests', () => {
         isActive: false,
       },
       imageStream
+    );
+
+    expect(response).toBeDefined();
+    expect(response.objectId).toBeDefined();
+    expect(response.secure_url).toContain('https://cdn.liobase.com/public/');
+  });
+
+  // FILE UPLOADS 
+
+  it('should successfully upload a file as a Blob', async () => {
+    const fileBuffer = fs.readFileSync(testFilePath);
+    const fileBlob = new Blob([fileBuffer], { type: 'application/octet-stream' });
+
+    const response = await sdk.uploader.uploadFile(
+      {
+        name: 'Integration Test File',
+        originalFileName: 'generic-file.bin',
+        folderName: 'Home',
+        isActive: false,
+      },
+      fileBlob
     );
 
     expect(response).toBeDefined();
