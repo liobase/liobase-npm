@@ -63,7 +63,7 @@ describe('UploaderResource Integration Tests', () => {
     expect(response.secure_url).toContain('https://cdn.liobase.com/public/');
   });
 
-  // FILE UPLOADS 
+  // GENERIC FILE UPLOADS
 
   it('should successfully upload a file as a Blob', async () => {
     const fileBuffer = fs.readFileSync(testFilePath);
@@ -77,6 +77,24 @@ describe('UploaderResource Integration Tests', () => {
         isActive: false,
       },
       fileBlob
+    );
+
+    expect(response).toBeDefined();
+    expect(response.objectId).toBeDefined();
+    expect(response.secure_url).toContain('https://cdn.liobase.com/public/');
+  });
+
+  it('should successfully upload a file as a Stream', async () => {
+    const fileStream = fs.createReadStream(testFilePath);
+
+    const response = await sdk.uploader.uploadFileStream(
+      {
+        name: 'Integration Test Stream File',
+        originalFileName: 'generic-file.bin',
+        folderName: 'Home',
+        isActive: false,
+      },
+      fileStream
     );
 
     expect(response).toBeDefined();
