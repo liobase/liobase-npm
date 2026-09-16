@@ -40,5 +40,25 @@ describe('UploaderResource Integration Tests', () => {
     );
 
     expect(response).toBeDefined();
+    expect(response.objectId).toBeDefined();
+  });
+
+  it('should successfully upload an image as a Stream', async () => {
+    // Readable stream
+    const imageStream = fs.createReadStream(testFilePath);
+
+    const response = await sdk.uploader.uploadImageStream(
+      {
+        name: 'Integration Test Stream Image',
+        originalFileName: 'image.jpg',
+        folderName: 'Home',
+        isActive: false,
+      },
+      imageStream
+    );
+
+    expect(response).toBeDefined();
+    expect(response.objectId).toBeDefined();
+    expect(response.secure_url).toContain('https://cdn.liobase.com/public/');
   });
 });
